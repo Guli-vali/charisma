@@ -1,150 +1,82 @@
 'use client';
 
-import Link from 'next/link';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, Button, ProgressBar } from '@/components/ui';
+import { WelcomeCard } from '@/components/dashboard/WelcomeCard';
+import { StreakCard } from '@/components/dashboard/StreakCard';
+import { SkillTree } from '@/components/dashboard/SkillTree';
+import { DailyMissions } from '@/components/dashboard/DailyMissions';
+import { AchievementsCard } from '@/components/dashboard/AchievementsCard';
 import { useAuth } from '@/hooks/useAuth';
-import { calculateLevel, formatNumber } from '@/lib/utils';
-import { Flame, Trophy, BookOpen } from 'lucide-react';
+import { useUserProgress } from '@/hooks/useUserProgress';
+import { useDailyMissions } from '@/hooks/useDailyMissions';
+import { getUserAchievements, calculateUserLevel } from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-
+  const { progress, loading: progressLoading } = useUserProgress(user?.id);
+  const { missions, currentStreak, loading: missionsLoading, completeMission } = useDailyMissions(user?.id);
+  
   if (!user) {
     return null;
   }
 
-  const level = calculateLevel(user.experience_points);
-  const progress = (user.experience_points % 100) / 100 * 100;
+  const level = calculateUserLevel(user.experience_points);
+  const achievements = getUserAchievements();
+
+  const handleCompleteMission = async (missionId: string) => {
+    try {
+      await completeMission('real_mission');
+      toast.success('Миссия выполнена! +10 XP');
+    } catch (error) {
+      toast.error('Ошибка при выполнении миссии');
+    }
+  };
+
+  const handleSkillClick = (skillId: string) => {
+    // TODO: Перейти к урокам этого навыка
+    toast.info(`Переход к урокам: ${skillId}`);
+  };
+
+  if (progressLoading || missionsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="space-y-8">
-        {/* Welcome Section */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Добро пожаловать, {user.name}! 👋
-          </h1>
-          <p className="text-gray-600">
-            Продолжайте развивать свою харизму
-          </p>
+      <div className="space-y-6">
+        {/* Top Section: Welcome & Streak */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <WelcomeCard
+            userName={user.name}
+            xp={user.experience_points}
+            level={level}
+          />
+          <StreakCard
+            streak={currentStreak}
+            league={user.current_league}
+          />
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-500" />
-                Уровень
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-indigo-600">{level}</div>
-              <p className="text-sm text-gray-600 mt-2">{formatNumber(user.experience_points)} XP</p>
-              <ProgressBar value={progress} variant="primary" size="sm" className="mt-4" />
-            </CardContent>
-          </Card>
+        {/* Skill Tree Section */}
+        <SkillTree
+          progress={progress}
+          onSkillClick={handleSkillClick}
+        />
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Flame className="w-5 h-5 text-orange-500" />
-                Серия
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-orange-600">{user.current_streak}</div>
-              <p className="text-sm text-gray-600 mt-2">дней подряд</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-emerald-500" />
-                Уроки
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-emerald-600">{user.total_lessons_completed}</div>
-              <p className="text-sm text-gray-600 mt-2">завершено</p>
-            </CardContent>
-          </Card>
+        {/* Bottom Section: Missions & Achievements */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <DailyMissions
+            missions={missions}
+            onComplete={handleCompleteMission}
+          />
+          <AchievementsCard
+            achievements={achievements}
+          />
         </div>
-
-        {/* League Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ваша лига</CardTitle>
-            <CardDescription>Текущий статус: {user.current_league}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="text-4xl">
-                {user.current_league === 'bronze' && '🥉'}
-                {user.current_league === 'silver' && '🥈'}
-                {user.current_league === 'gold' && '🥇'}
-                {user.current_league === 'platinum' && '💎'}
-              </div>
-              <div>
-                <p className="font-semibold text-lg capitalize">{user.current_league}</p>
-                <p className="text-sm text-gray-600">
-                  Продолжайте учиться, чтобы повысить лигу
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Goals Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Ваши цели</CardTitle>
-            <CardDescription>Выбранные направления развития</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {user.goals.work && (
-                <div className="flex items-center gap-2 p-3 bg-indigo-50 rounded-xl">
-                  <span className="text-lg">💼</span>
-                  <span className="font-medium">Работа</span>
-                </div>
-              )}
-              {user.goals.dating && (
-                <div className="flex items-center gap-2 p-3 bg-pink-50 rounded-xl">
-                  <span className="text-lg">💕</span>
-                  <span className="font-medium">Знакомства</span>
-                </div>
-              )}
-              {user.goals.leadership && (
-                <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl">
-                  <span className="text-lg">👑</span>
-                  <span className="font-medium">Лидерство</span>
-                </div>
-              )}
-              {!user.goals.work && !user.goals.dating && !user.goals.leadership && (
-                <p className="text-gray-600">Вы еще не выбрали цели. Обновите профиль!</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Быстрые действия</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4">
-              <Button variant="primary" asChild>
-                <Link href="/lessons">Начать урок</Link>
-              </Button>
-              <Button variant="outline" asChild>
-                <Link href="/profile">Посмотреть профиль</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
