@@ -89,3 +89,80 @@ export interface Achievement {
   unlocked: boolean;
   unlocked_at?: string;
 }
+
+// Lessons & Exercises Types
+export type ExerciseType = 'multiple_choice' | 'fill_blanks' | 'true_false' | 'matching' | 'sequence';
+
+export interface BaseExercise {
+  type: ExerciseType;
+}
+
+export interface MultipleChoiceExercise extends BaseExercise {
+  type: 'multiple_choice';
+  question: string;
+  options: string[];
+  correct_answer: number;
+  explanation: string;
+}
+
+export interface FillBlanksExercise extends BaseExercise {
+  type: 'fill_blanks';
+  sentence: string;
+  blanks: Record<string, string[]>;
+  correct_answers: string[];
+}
+
+export interface TrueFalseExercise extends BaseExercise {
+  type: 'true_false';
+  statement: string;
+  correct_answer: boolean;
+  explanation: string;
+}
+
+export interface MatchingExercise extends BaseExercise {
+  type: 'matching';
+  instruction: string;
+  left_items: string[];
+  right_items: string[];
+  correct_matches: Record<string, string>;
+}
+
+export interface SequenceExercise extends BaseExercise {
+  type: 'sequence';
+  instruction: string;
+  items: string[];
+  correct_order: number[];
+}
+
+export type Exercise = 
+  | MultipleChoiceExercise 
+  | FillBlanksExercise 
+  | TrueFalseExercise 
+  | MatchingExercise 
+  | SequenceExercise;
+
+export interface Lesson {
+  id: string;
+  skill_node: string;
+  lesson_number: number;
+  title: string;
+  description: string;
+  xp_reward: number;
+  exercises: Exercise[];
+  is_checkpoint: boolean;
+  created: string;
+}
+
+export type LessonAttemptStatus = 'in_progress' | 'completed' | 'failed';
+
+export interface UserLessonAttempt {
+  id: string;
+  user: string;
+  lesson: string;
+  status: LessonAttemptStatus;
+  hearts_left: number;
+  current_exercise: number;
+  score: number;
+  completed_at?: string;
+  created: string;
+}
