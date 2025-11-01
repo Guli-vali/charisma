@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { WelcomeCard } from '@/components/dashboard/WelcomeCard';
 import { StreakCard } from '@/components/dashboard/StreakCard';
 import { SkillTree } from '@/components/dashboard/SkillTree';
@@ -12,6 +13,7 @@ import { getUserAchievements, calculateUserLevel } from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { progress, loading: progressLoading } = useUserProgress(user?.id);
   const { missions, currentStreak, loading: missionsLoading, completeMission } = useDailyMissions(user?.id);
@@ -33,8 +35,8 @@ export default function DashboardPage() {
   };
 
   const handleSkillClick = (skillId: string) => {
-    // TODO: Перейти к урокам этого навыка
-    toast.info(`Переход к урокам: ${skillId}`);
+    // Переход к урокам навыка
+    router.push(`/skills/${skillId}`);
   };
 
   if (progressLoading || missionsLoading) {
