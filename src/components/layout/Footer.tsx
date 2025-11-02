@@ -25,6 +25,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/missions" className="hover:text-indigo-600 transition-colors">
+                  Миссии
+                </Link>
+              </li>
+              <li>
                 <Link href="/profile" className="hover:text-indigo-600 transition-colors">
                   Профиль
                 </Link>

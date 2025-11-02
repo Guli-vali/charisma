@@ -166,3 +166,59 @@ export interface UserLessonAttempt {
   completed_at?: string;
   created: string;
 }
+
+// Real Missions Types
+export type MissionType = 'daily' | 'weekly' | 'challenge';
+export type MissionCategory = 'smalltalk' | 'confidence' | 'networking' | 'leadership';
+export type MissionDifficulty = 'easy' | 'medium' | 'hard';
+export type MissionStatus = 'assigned' | 'completed' | 'skipped' | 'failed';
+
+export interface Mission {
+  id: string;
+  type: MissionType;
+  category: MissionCategory;
+  title: string;
+  description: string;
+  difficulty: MissionDifficulty;
+  xp_reward: number;
+  icon: string;
+  is_active: boolean;
+  created: string;
+}
+
+export interface UserMission {
+  id: string;
+  user: string;
+  mission: string;
+  status: MissionStatus;
+  assigned_date: string; // ISO DateTime string
+  completed_date?: string;
+  proof_text?: string;
+  mood_rating?: number; // 1-5
+  was_difficult?: boolean;
+  created: string;
+  expand?: {
+    mission?: Mission;
+  };
+}
+
+export interface MissionStats {
+  total_completed: number;
+  total_assigned: number;
+  completion_rate: number;
+  current_streak: number;
+  favorite_category?: MissionCategory;
+  total_xp_earned: number;
+}
+
+export interface WeeklyChallenge {
+  id: string;
+  title: string;
+  description: string;
+  category: MissionCategory;
+  start_date: string;
+  end_date: string;
+  target: number; // количество для выполнения
+  xp_reward: number;
+  icon: string;
+}
