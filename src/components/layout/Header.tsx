@@ -45,6 +45,9 @@ export function Header() {
             <Link href="/lessons" className="text-gray-700 hover:text-indigo-600 transition-colors">
               Уроки
             </Link>
+            <Link href="/missions" className="text-gray-700 hover:text-indigo-600 transition-colors">
+              Миссии
+            </Link>
             <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition-colors">
               Профиль
             </Link>
@@ -90,6 +93,9 @@ export function Header() {
               </Link>
               <Link href="/lessons" className="text-gray-700 hover:text-indigo-600 transition-colors">
                 Уроки
+              </Link>
+              <Link href="/missions" className="text-gray-700 hover:text-indigo-600 transition-colors">
+                Миссии
               </Link>
               <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition-colors">
                 Профиль
