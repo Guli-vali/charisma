@@ -190,11 +190,9 @@ async function updateStreak(userId: string, currentUser: User): Promise<number> 
       ).catch(() => null);
 
       if (todayStreak) {
-        // Уже есть активность сегодня - обновляем счетчик уроков
-        console.log('✅ Found today streak, updating lessons count');
-        await pb.client.collection('daily_streaks').update(todayStreak.id, {
-          lessons_completed: (todayStreak.lessons_completed || 0) + 1,
-        }, { requestKey: null });
+        // Уже есть активность сегодня - стрик не меняется
+        console.log('✅ Found today streak, streak stays the same');
+        // НЕ обновляем lessons_completed здесь - это делается через updateTodayStreak()
         return currentUser.current_streak; // Стрик не меняется
       }
 
@@ -207,40 +205,25 @@ async function updateStreak(userId: string, currentUser: User): Promise<number> 
       ).catch(() => null);
 
       // Создаем запись на сегодня (с защитой от дубликатов через unique index)
-      const todayDate = new Date();
-      todayDate.setHours(0, 0, 0, 0);
-      
+      // lessons_completed будет установлен через updateTodayStreak() после этой функции
       try {
         await pb.client.collection('daily_streaks').create({
           user: userId,
-          date: todayDate.toISOString(), // Полный ISO формат
-          lessons_completed: 1,
+          date: today, // today уже в формате YYYY-MM-DD
+          lessons_completed: 0, // Будет обновлено через updateTodayStreak()
           missions_completed: 0,
         }, { requestKey: null });
         
-        console.log('✅ Streak record created');
+        console.log('✅ Streak record created (lessons_completed will be updated via updateTodayStreak)');
       } catch (createErr) {
         // Если запись уже существует (unique constraint) - это нормально
         const err = createErr as { status?: number; data?: { data?: { date?: { code?: string } } } };
         if (err.status === 400 && err.data?.data?.date?.code === 'validation_not_unique') {
-          console.log('ℹ️ Streak record already exists (race condition), updating instead');
-          
-          const tomorrow2 = new Date();
-          tomorrow2.setDate(tomorrow2.getDate() + 1);
-          const tomorrowStr2 = tomorrow2.toISOString().split('T')[0];
-          
-          // Получаем существующую запись и обновляем
-          const existingStreak = await pb.client.collection('daily_streaks').getFirstListItem(
-            `user = "${userId}" && date >= "${today}" && date < "${tomorrowStr2}"`,
-            { requestKey: null }
-          );
-          
-          await pb.client.collection('daily_streaks').update(existingStreak.id, {
-            lessons_completed: (existingStreak.lessons_completed || 0) + 1,
-          }, { requestKey: null });
-          
+          console.log('ℹ️ Streak record already exists (race condition)');
+          // НЕ обновляем lessons_completed здесь - это делается через updateTodayStreak()
           return currentUser.current_streak; // Используем текущий стрик
         }
+        console.error('Error creating streak record:', err);
         throw createErr; // Другие ошибки пробрасываем
       }
 
@@ -251,7 +234,7 @@ async function updateStreak(userId: string, currentUser: User): Promise<number> 
       
     } catch (err) {
       // Если коллекция daily_streaks не существует, просто увеличиваем стрик
-      console.warn('Collection daily_streaks not found, using simple streak counter');
+      console.warn('Collection daily_streaks not found, using simple streak counter', err);
       return currentUser.current_streak + 1;
     }
   } catch (error) {

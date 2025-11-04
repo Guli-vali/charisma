@@ -43,16 +43,14 @@ async function updateMissionStreak(userId: string, xpEarned: number = 0): Promis
         console.log('📝 Creating new streak record with missions_completed: 1');
         
         // Создаем дату на начало дня для сохранения
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
+        const today = new Date().toISOString().split('T')[0]; // Формат YYYY-MM-DD
         
         try {
           await pb.client.collection('daily_streaks').create({
             user: userId,
-            date: todayDate.toISOString(), // Полный ISO формат
+            date: today,
             lessons_completed: 0,
             missions_completed: 1,
-            xp_earned_today: xpEarned,
           }, { requestKey });
           
           console.log('✅ New mission streak created in DB');

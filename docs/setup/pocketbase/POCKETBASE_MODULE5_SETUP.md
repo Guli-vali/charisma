@@ -129,6 +129,10 @@
 | `date` | Text | Required, Max: 10 (формат YYYY-MM-DD) |
 | `lessons_completed` | Number | Required, Default: 0 |
 | `missions_completed` | Number | Required, Default: 0 |
+| `xp_earned_today` | Number | Optional, Default: 0, Min: 0 |
+| `lesson_mission_claimed` | Bool | Optional, Default: false |
+| `real_mission_claimed` | Bool | Optional, Default: false |
+| `xp_mission_claimed` | Bool | Optional, Default: false |
 
 ### Индексы для daily_streaks
 

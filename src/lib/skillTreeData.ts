@@ -129,3 +129,6 @@ export const getSkillsByLevel = (level: number): SkillTreeNode[] => {
 export const getTotalLevels = (): number => {
   return Math.max(...SKILL_TREE_DATA.map(skill => skill.level));
 };
+
+// Экспорт под альтернативным именем для обратной совместимости
+export const SKILL_TREE = SKILL_TREE_DATA;

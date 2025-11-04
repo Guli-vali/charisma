@@ -434,3 +434,44 @@ export async function getWeeklyLeaderboard(limit: number = 100): Promise<LeagueP
     return [];
   }
 }
+
+/**
+ * Получить информацию о лиге по названию/уровню
+ * Используется в профиле для отображения текущей лиги
+ */
+export function getLeagueInfo(leagueNameOrLevel: string | number): {
+  name: string;
+  icon: string;
+  color: string;
+  level: number;
+  min_xp: number;
+  max_xp: number;
+} {
+  let league;
+  
+  if (typeof leagueNameOrLevel === 'number') {
+    // Поиск по уровню
+    league = LEAGUE_DEFINITIONS.find(l => l.level === leagueNameOrLevel);
+  } else {
+    // Поиск по названию (bronze, silver, gold, platinum, diamond)
+    const normalizedName = leagueNameOrLevel.toLowerCase();
+    league = LEAGUE_DEFINITIONS.find(l => 
+      l.name.toLowerCase().includes(normalizedName) ||
+      normalizedName.includes(l.name.toLowerCase().split(' ')[0])
+    );
+  }
+  
+  // Если не найдено, возвращаем бронзовую лигу
+  if (!league) {
+    league = LEAGUE_DEFINITIONS[0];
+  }
+  
+  return {
+    name: league.name,
+    icon: league.icon === 'Medal' ? '🏅' : league.icon === 'Crown' ? '👑' : '💎',
+    color: league.color,
+    level: league.level,
+    min_xp: league.min_xp,
+    max_xp: league.max_xp,
+  };
+}

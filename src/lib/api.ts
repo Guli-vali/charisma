@@ -188,13 +188,9 @@ export async function updateTodayStreak(
     
     const existing = await getTodayStreak(userId);
     
-    // Создаем дату на начало сегодняшнего дня для сохранения
-    const todayDate = new Date();
-    todayDate.setHours(0, 0, 0, 0);
-    
     const data = {
       user: userId,
-      date: todayDate.toISOString(), // Полный ISO формат для date поля
+      date: today, // Формат YYYY-MM-DD как указано в схеме
       lessons_completed: existing ? existing.lessons_completed + lessonsCompleted : lessonsCompleted,
       missions_completed: existing ? existing.missions_completed + missionsCompleted : missionsCompleted,
       xp_earned_today: existing ? (existing.xp_earned_today || 0) + xpEarned : xpEarned,
