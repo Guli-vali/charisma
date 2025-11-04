@@ -10,25 +10,35 @@ export function useDailyMissions(userId: string | undefined) {
   const [error, setError] = useState<Error | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('⚠️ useDailyMissions.loadData: no userId');
+      return;
+    }
 
     try {
+      console.log('🔄 useDailyMissions.loadData: loading data for', userId);
       setLoading(true);
       
       // Загружаем данные о сегодняшнем стрике
+      console.log('📡 Fetching today streak...');
       const streak = await getTodayStreak(userId);
+      console.log('📊 Today streak:', streak);
       setTodayStreak(streak);
       
       // Генерируем дневные задания на основе прогресса
+      console.log('🎯 Generating daily missions...');
       const dailyMissions = getDailyMissions(userId, streak);
+      console.log('✅ Daily missions generated:', dailyMissions);
       setMissions(dailyMissions);
       
       // Рассчитываем текущий streak
       const streakCount = await calculateCurrentStreak(userId);
+      console.log('🔥 Current streak:', streakCount);
       setCurrentStreak(streakCount);
       
       setError(null);
     } catch (err) {
+      console.error('❌ Error loading daily missions:', err);
       setError(err as Error);
     } finally {
       setLoading(false);

@@ -2,27 +2,31 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Card, Button, Input } from '@/components/ui';
+import { Card, Button } from '@/components/ui';
 import { X, Star } from 'lucide-react';
 
 interface MissionCompleteModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (proofText?: string, moodRating?: number, wasDifficult?: boolean) => void;
+  onConfirmComplete?: () => void; // Вызывается после подтверждения
   missionTitle: string;
+  missionCategory?: string;
 }
 
 export function MissionCompleteModal({
   isOpen,
   onClose,
   onConfirm,
+  onConfirmComplete,
   missionTitle,
+  missionCategory,
 }: MissionCompleteModalProps) {
   const [proofText, setProofText] = useState('');
   const [moodRating, setMoodRating] = useState<number | null>(null);
   const [wasDifficult, setWasDifficult] = useState<boolean | null>(null);
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     onConfirm(
       proofText || undefined,
       moodRating || undefined,
@@ -33,6 +37,11 @@ export function MissionCompleteModal({
     setProofText('');
     setMoodRating(null);
     setWasDifficult(null);
+    
+    // Вызываем callback если есть
+    if (onConfirmComplete) {
+      onConfirmComplete();
+    }
   };
 
   if (!isOpen) return null;

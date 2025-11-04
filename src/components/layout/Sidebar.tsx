@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, BookOpen, User, Home, Target } from 'lucide-react';
+import { LayoutDashboard, BookOpen, User, Home, Target, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Дашборд', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Уроки', href: '/lessons', icon: BookOpen },
   { name: 'Реальные миссии', href: '/missions', icon: Target },
+  { name: 'Достижения', href: '/achievements', icon: Trophy },
   { name: 'Профиль', href: '/profile', icon: User },
 ];
 

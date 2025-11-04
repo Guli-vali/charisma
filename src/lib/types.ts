@@ -66,6 +66,10 @@ export interface DailyStreak {
   date: string; // YYYY-MM-DD
   lessons_completed: number;
   missions_completed: number;
+  xp_earned_today: number; // Заработанный XP за день
+  lesson_mission_claimed?: boolean; // Награда за урок получена
+  real_mission_claimed?: boolean; // Награда за реальную миссию получена
+  xp_mission_claimed?: boolean; // Награда за XP получена
   created: string;
 }
 
@@ -221,4 +225,125 @@ export interface WeeklyChallenge {
   target: number; // количество для выполнения
   xp_reward: number;
   icon: string;
+}
+
+// Achievements & Gamification Types
+export type AchievementCategory = 'lessons' | 'missions' | 'streaks' | 'social' | 'special';
+export type AchievementRarity = 'common' | 'rare' | 'epic' | 'legendary';
+
+export interface AchievementCondition {
+  type: string;
+  value: number;
+}
+
+export interface AchievementData {
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  category: AchievementCategory;
+  rarity: AchievementRarity;
+  xp_reward: number;
+  unlock_condition?: AchievementCondition;
+  is_hidden?: boolean;
+}
+
+export interface DBAchievement {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  category: AchievementCategory;
+  rarity: AchievementRarity;
+  xp_reward: number;
+  unlock_condition?: AchievementCondition;
+  is_hidden: boolean;
+  created: string;
+}
+
+export interface UserAchievement {
+  id: string;
+  user: string;
+  achievement: string;
+  earned_at: string;
+  progress: number;
+  created: string;
+  expand?: {
+    achievement?: DBAchievement;
+  };
+}
+
+// Leagues Types
+export interface LeagueRewards {
+  first: string;
+  second: string;
+  third: string;
+}
+
+export interface League {
+  id: string;
+  name: string;
+  level: number;
+  min_xp: number;
+  max_users: number;
+  season_start: string;
+  season_end: string;
+  rewards: LeagueRewards;
+  icon?: string;
+  created: string;
+}
+
+export interface LeagueRanking {
+  user_id: string;
+  name: string;
+  avatar_url?: string;
+  experience_points: number;
+  position: number;
+}
+
+// Levels System
+export interface LevelInfo {
+  current_level: number;
+  current_xp: number;
+  xp_for_next_level: number;
+  progress_percentage: number;
+  total_xp: number;
+}
+
+export interface LevelReward {
+  level: number;
+  reward_title: string;
+  reward_description: string;
+  icon: string;
+}
+
+// Rewards Types
+export type RewardType = 'avatar' | 'frame' | 'badge' | 'theme' | 'feature' | 'xp_boost';
+
+export interface Reward {
+  id: string;
+  type: RewardType;
+  title: string;
+  description: string;
+  icon: string;
+  cost: number; // в очках
+  is_unlocked: boolean;
+  preview_image?: string;
+}
+
+// Gamification Actions
+export type GamificationAction = 
+  | 'lesson_completed'
+  | 'mission_completed'
+  | 'streak_achieved'
+  | 'login'
+  | 'level_up'
+  | 'achievement_unlocked';
+
+export interface GamificationEvent {
+  action: GamificationAction;
+  userId: string;
+  data?: Record<string, any>;
+  timestamp: string;
 }

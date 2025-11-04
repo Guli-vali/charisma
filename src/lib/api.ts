@@ -2,12 +2,92 @@ import { pb } from './pocketbase';
 import type { UserProgress, DailyStreak, DailyMission, Achievement, User } from './types';
 
 // User Progress Functions
+
+/**
+ * Инициализирует начальный прогресс для нового пользователя
+ * Разблокирует первые навыки без prerequisites
+ */
+export async function initializeUserProgress(userId: string): Promise<void> {
+  try {
+    console.log('🚀 Initializing user progress for:', userId);
+    
+    // Динамический импорт для избежания циклических зависимостей
+    const { SKILL_TREE_DATA } = await import('@/lib/skillTreeData');
+    
+    // Проверяем, есть ли уже прогресс
+    const existingProgress = await pb.client.collection('progress').getFullList({
+      filter: `user = "${userId}"`,
+      requestKey: null,
+    });
+    
+    if (existingProgress.length > 0) {
+      console.log('✅ User already has progress records');
+      return;
+    }
+    
+    // Находим навыки без prerequisites (стартовые)
+    const startingSkills = SKILL_TREE_DATA.filter(skill => 
+      skill.prerequisites.length === 0
+    );
+    
+    console.log(`📋 Found ${startingSkills.length} starting skills:`, startingSkills.map(s => s.id));
+    
+    // Создаем записи для стартовых навыков (available)
+    for (const skill of startingSkills) {
+      await pb.client.collection('progress').create({
+        user: userId,
+        skill_tree_node: skill.id,
+        status: 'available',
+        progress_percentage: 0,
+        completed_exercises: [],
+      }, { requestKey: null });
+      
+      console.log(`✅ Initialized skill: ${skill.id} as available`);
+    }
+    
+    // Создаем записи для остальных навыков (locked)
+    const lockedSkills = SKILL_TREE_DATA.filter(skill => 
+      skill.prerequisites.length > 0
+    );
+    
+    for (const skill of lockedSkills) {
+      await pb.client.collection('progress').create({
+        user: userId,
+        skill_tree_node: skill.id,
+        status: 'locked',
+        progress_percentage: 0,
+        completed_exercises: [],
+      }, { requestKey: null });
+      
+      console.log(`🔒 Initialized skill: ${skill.id} as locked`);
+    }
+    
+    console.log('🎉 User progress initialized successfully');
+  } catch (error) {
+    console.error('❌ Error initializing user progress:', error);
+  }
+}
+
 export async function getUserProgress(userId: string): Promise<UserProgress[]> {
   try {
     const records = await pb.client.collection('progress').getFullList({
       filter: `user = "${userId}"`,
       sort: '-updated',
     });
+    
+    // Если нет записей, инициализируем
+    if (records.length === 0) {
+      console.log('⚠️ No progress records found, initializing...');
+      await initializeUserProgress(userId);
+      
+      // Повторно получаем записи
+      const newRecords = await pb.client.collection('progress').getFullList({
+        filter: `user = "${userId}"`,
+        sort: '-updated',
+      });
+      
+      return newRecords as unknown as UserProgress[];
+    }
     
     return records as unknown as UserProgress[];
   } catch (error: unknown) {
@@ -28,7 +108,7 @@ export async function getSkillProgress(userId: string, skillNodeId: string): Pro
     );
     
     return record as unknown as UserProgress;
-  } catch (error: unknown) {
+  } catch {
     // Игнорируем auto-cancellation и not found
     return null;
   }
@@ -76,12 +156,21 @@ export async function updateProgress(
 export async function getTodayStreak(userId: string): Promise<DailyStreak | null> {
   try {
     const today = new Date().toISOString().split('T')[0];
+    console.log(`🔍 getTodayStreak for user ${userId}, date: ${today}`);
+    
+    // Используем >= и < для поиска по дате (работает с date полями)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
     const record = await pb.client.collection('daily_streaks').getFirstListItem(
-      `user = "${userId}" && date = "${today}"`
+      `user = "${userId}" && date >= "${today}" && date < "${tomorrowStr}"`
     );
     
+    console.log('✅ Found today streak:', record);
     return record as unknown as DailyStreak;
-  } catch (error: unknown) {
+  } catch (err) {
+    console.log('⚠️ getTodayStreak: no record found or error:', err);
     // Игнорируем auto-cancellation и not found
     return null;
   }
@@ -90,28 +179,74 @@ export async function getTodayStreak(userId: string): Promise<DailyStreak | null
 export async function updateTodayStreak(
   userId: string,
   lessonsCompleted: number = 0,
-  missionsCompleted: number = 0
+  missionsCompleted: number = 0,
+  xpEarned: number = 0
 ): Promise<DailyStreak> {
   try {
     const today = new Date().toISOString().split('T')[0];
+    const requestKey = `today_streak_${userId}_${today}`;
+    
     const existing = await getTodayStreak(userId);
+    
+    // Создаем дату на начало сегодняшнего дня для сохранения
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
     
     const data = {
       user: userId,
-      date: today,
+      date: todayDate.toISOString(), // Полный ISO формат для date поля
       lessons_completed: existing ? existing.lessons_completed + lessonsCompleted : lessonsCompleted,
       missions_completed: existing ? existing.missions_completed + missionsCompleted : missionsCompleted,
+      xp_earned_today: existing ? (existing.xp_earned_today || 0) + xpEarned : xpEarned,
     };
 
     let record;
     if (existing) {
-      record = await pb.client.collection('daily_streaks').update(existing.id, data);
+      record = await pb.client.collection('daily_streaks').update(existing.id, data, { requestKey });
+      console.log(`✅ Updated daily_streaks: L:${data.lessons_completed} M:${data.missions_completed} XP:${data.xp_earned_today}`);
     } else {
-      record = await pb.client.collection('daily_streaks').create(data);
+      try {
+        record = await pb.client.collection('daily_streaks').create(data, { requestKey });
+        console.log(`✅ Created daily_streaks: L:${data.lessons_completed} M:${data.missions_completed} XP:${data.xp_earned_today}`);
+      } catch (createErr) {
+        // Если уже существует - обновляем
+        const err = createErr as { status?: number; data?: { data?: unknown } };
+        if (err.status === 400 && err.data?.data) {
+          console.log('⚠️ Duplicate on create, fetching and updating...');
+          const existing2 = await getTodayStreak(userId);
+          if (existing2) {
+            record = await pb.client.collection('daily_streaks').update(existing2.id, {
+              lessons_completed: existing2.lessons_completed + lessonsCompleted,
+              missions_completed: existing2.missions_completed + missionsCompleted,
+              xp_earned_today: (existing2.xp_earned_today || 0) + xpEarned,
+            });
+            console.log('✅ Updated after duplicate on create');
+          } else {
+            throw createErr;
+          }
+        } else {
+          throw createErr;
+        }
+      }
     }
     
     return record as unknown as DailyStreak;
-  } catch (error) {
+  } catch (err) {
+    // Игнорируем auto-cancellation
+    const error = err as { isAbort?: boolean; message?: string };
+    if (error.isAbort || error.message?.includes('autocancelled')) {
+      console.log('⏭️ updateTodayStreak cancelled');
+      // Возвращаем пустую запись
+      return {
+        id: '',
+        user: userId,
+        date: new Date().toISOString().split('T')[0],
+        lessons_completed: 0,
+        missions_completed: 0,
+        xp_earned_today: 0,
+        created: new Date().toISOString(),
+      } as DailyStreak;
+    }
     console.error('Error updating streak:', error);
     throw error;
   }
@@ -158,6 +293,15 @@ export async function calculateCurrentStreak(userId: string): Promise<number> {
 
 // Daily Missions Functions
 export function getDailyMissions(userId: string, todayStreak: DailyStreak | null): DailyMission[] {
+  const lessonsCompleted = todayStreak?.lessons_completed || 0;
+  const missionsCompleted = todayStreak?.missions_completed || 0;
+  const xpEarned = todayStreak?.xp_earned_today || 0;
+  
+  // Проверяем, получена ли уже награда за каждую миссию
+  const lessonRewardClaimed = todayStreak?.lesson_mission_claimed || false;
+  const missionRewardClaimed = todayStreak?.real_mission_claimed || false;
+  const xpRewardClaimed = todayStreak?.xp_mission_claimed || false;
+  
   return [
     {
       id: 'complete_lesson',
@@ -165,9 +309,9 @@ export function getDailyMissions(userId: string, todayStreak: DailyStreak | null
       title: 'Завершить 1 урок',
       description: 'Пройдите один урок сегодня',
       target: 1,
-      current: todayStreak?.lessons_completed || 0,
+      current: lessonsCompleted,
       xp_reward: 10,
-      completed: (todayStreak?.lessons_completed || 0) >= 1,
+      completed: lessonsCompleted >= 1 && lessonRewardClaimed, // Выполнено, если урок пройден И награда получена
     },
     {
       id: 'real_mission',
@@ -175,9 +319,9 @@ export function getDailyMissions(userId: string, todayStreak: DailyStreak | null
       title: 'Выполнить реальную миссию',
       description: 'Практикуйте навыки в реальной жизни',
       target: 1,
-      current: todayStreak?.missions_completed || 0,
+      current: missionsCompleted,
       xp_reward: 10,
-      completed: (todayStreak?.missions_completed || 0) >= 1,
+      completed: missionsCompleted >= 1 && missionRewardClaimed,
     },
     {
       id: 'earn_xp',
@@ -185,9 +329,9 @@ export function getDailyMissions(userId: string, todayStreak: DailyStreak | null
       title: 'Заработать 50 XP',
       description: 'Получите 50 XP сегодня',
       target: 50,
-      current: 0, // Нужно будет трекать отдельно
+      current: xpEarned,
       xp_reward: 10,
-      completed: false,
+      completed: xpEarned >= 50 && xpRewardClaimed,
     },
   ];
 }
@@ -197,21 +341,74 @@ export async function completeDailyMission(
   missionType: 'complete_lesson' | 'real_mission' | 'earn_xp'
 ): Promise<void> {
   try {
-    if (missionType === 'complete_lesson') {
-      await updateTodayStreak(userId, 1, 0);
-    } else if (missionType === 'real_mission') {
-      await updateTodayStreak(userId, 0, 1);
+    let todayStreak = await getTodayStreak(userId);
+    
+    // Если записи нет, создаем её (для случая когда пользователь выполняет миссию первым действием за день)
+    if (!todayStreak) {
+      console.log('Creating daily streak record for today...');
+      todayStreak = await updateTodayStreak(userId, 0, 0, 0);
     }
     
-    // Обновляем XP пользователя
+    // Для реальной миссии - НЕ увеличиваем счетчик здесь!
+    // Счетчик должен увеличиваться только когда реальная миссия выполнена на странице /missions
+    // Эта функция только выдает награду, если миссия уже выполнена
+    
+    // Проверяем, можно ли получить награду
+    let canClaim = false;
+    let claimField = '';
+    
+    if (missionType === 'complete_lesson') {
+      canClaim = todayStreak.lessons_completed >= 1 && !todayStreak.lesson_mission_claimed;
+      claimField = 'lesson_mission_claimed';
+    } else if (missionType === 'real_mission') {
+      canClaim = todayStreak.missions_completed >= 1 && !todayStreak.real_mission_claimed;
+      claimField = 'real_mission_claimed';
+    } else if (missionType === 'earn_xp') {
+      canClaim = (todayStreak.xp_earned_today || 0) >= 50 && !todayStreak.xp_mission_claimed;
+      claimField = 'xp_mission_claimed';
+    }
+    
+    if (!canClaim) {
+      console.log('⚠️ Mission reward already claimed or requirements not met');
+      console.log('Mission type:', missionType);
+      console.log('Today streak:', todayStreak);
+      return; // Награда уже получена или требования не выполнены
+    }
+    
+    console.log(`✅ Claiming ${missionType} mission reward...`);
+    
+    // Отмечаем награду как полученную
+    await pb.client.collection('daily_streaks').update(todayStreak.id, {
+      [claimField]: true,
+    });
+    
+    console.log(`✅ Updated daily_streaks: ${claimField} = true`);
+    
+    // Начисляем XP пользователю
     const currentUser = pb.getCurrentUser();
     if (currentUser) {
+      const newXP = currentUser.experience_points + 10;
+      console.log(`💰 Awarding XP: ${currentUser.experience_points} + 10 = ${newXP}`);
+      
       await pb.updateProfile(currentUser.id, {
-        experience_points: currentUser.experience_points + 10,
+        experience_points: newXP,
       } as Partial<User>);
+      
+      // Обновляем Zustand store
+      try {
+        const { useAuth } = await import('@/hooks/useAuth');
+        await useAuth.getState().refreshUser();
+        console.log('✅ Daily mission reward claimed: +10 XP, Zustand refreshed');
+      } catch (error) {
+        console.error('Error refreshing Zustand store:', error);
+        throw error;
+      }
+    } else {
+      console.error('❌ No current user found');
+      throw new Error('No current user');
     }
   } catch (error) {
-    console.error('Error completing daily mission:', error);
+    console.error('❌ Error completing daily mission:', error);
     throw error;
   }
 }

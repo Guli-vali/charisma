@@ -1,5 +1,100 @@
 import { pb } from './pocketbase';
 import type { UserMission, MissionStats, MissionCategory, MissionDifficulty, User } from './types';
+
+/**
+ * Обновить стрик миссий
+ * Проверяет последнюю активность и обновляет стрик
+ */
+async function updateMissionStreak(userId: string, xpEarned: number = 0): Promise<void> {
+  try {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    console.log(`📊 Updating mission streak for user ${userId}, xp: ${xpEarned}`);
+    
+    // Используем requestKey для предотвращения параллельных запросов
+    const requestKey = `mission_streak_${userId}_${today}`;
+    
+    // Диапазон для поиска (сегодня от 00:00 до 23:59)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    try {
+      // Пытаемся получить или создать запись (с защитой от race condition)
+      let todayStreak = await pb.client.collection('daily_streaks').getFirstListItem(
+        `user = "${userId}" && date >= "${today}" && date < "${tomorrowStr}"`,
+        { requestKey }
+      ).catch(() => null);
+
+      if (todayStreak) {
+        // Запись существует - обновляем
+        const newMissionsCount = (todayStreak.missions_completed || 0) + 1;
+        const newXP = (todayStreak.xp_earned_today || 0) + xpEarned;
+        
+        console.log(`📈 Updating existing streak: missions ${todayStreak.missions_completed} → ${newMissionsCount}, xp ${todayStreak.xp_earned_today || 0} → ${newXP}`);
+        
+        await pb.client.collection('daily_streaks').update(todayStreak.id, {
+          missions_completed: newMissionsCount,
+          xp_earned_today: newXP,
+        }, { requestKey });
+        
+        console.log('✅ Mission streak updated in DB');
+      } else {
+        // Записи нет - создаем новую
+        console.log('📝 Creating new streak record with missions_completed: 1');
+        
+        // Создаем дату на начало дня для сохранения
+        const todayDate = new Date();
+        todayDate.setHours(0, 0, 0, 0);
+        
+        try {
+          await pb.client.collection('daily_streaks').create({
+            user: userId,
+            date: todayDate.toISOString(), // Полный ISO формат
+            lessons_completed: 0,
+            missions_completed: 1,
+            xp_earned_today: xpEarned,
+          }, { requestKey });
+          
+          console.log('✅ New mission streak created in DB');
+        } catch (createErr) {
+          // Если запись уже существует (unique constraint) - обновляем
+          const err = createErr as { status?: number; data?: { data?: unknown } };
+          if (err.status === 400 && err.data?.data) {
+            console.log('⚠️ Duplicate detected, updating existing record...');
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const tomorrowStr = tomorrow.toISOString().split('T')[0];
+            
+            todayStreak = await pb.client.collection('daily_streaks').getFirstListItem(
+              `user = "${userId}" && date >= "${today}" && date < "${tomorrowStr}"`,
+              { requestKey: null }
+            );
+            
+            if (todayStreak) {
+              await pb.client.collection('daily_streaks').update(todayStreak.id, {
+                missions_completed: (todayStreak.missions_completed || 0) + 1,
+                xp_earned_today: (todayStreak.xp_earned_today || 0) + xpEarned,
+              }, { requestKey: null });
+              console.log('✅ Updated after duplicate detection');
+            }
+          } else {
+            throw createErr;
+          }
+        }
+      }
+    } catch (err) {
+      // Игнорируем auto-cancellation
+      const error = err as { isAbort?: boolean; message?: string };
+      if (error.isAbort || error.message?.includes('autocancelled')) {
+        console.log('⏭️ Request cancelled (another is running)');
+        return;
+      }
+      console.warn('Error in daily_streaks operation:', err);
+    }
+  } catch (error) {
+    console.error('Error updating mission streak:', error);
+  }
+}
 import { getAllCategories } from '@/data/missionsBank';
 
 // Получить миссии пользователя на сегодня
@@ -156,6 +251,7 @@ export async function generateUserDailyMissions(userId: string, userGoals: User[
 
         const userMission = await pb.client.collection('user_missions').create(userMissionData, {
           expand: 'mission',
+          requestKey: null,
         });
         
         console.log('Created user mission:', userMission);
@@ -204,11 +300,14 @@ export async function completeMission(
       was_difficult: wasDifficult,
     };
 
-    await pb.client.collection('user_missions').update(userMissionId, data);
+    await pb.client.collection('user_missions').update(userMissionId, data, {
+      requestKey: null,
+    });
 
     // Получаем миссию для начисления XP
     const userMission = await pb.client.collection('user_missions').getOne(userMissionId, {
       expand: 'mission',
+      requestKey: null,
     });
 
     // Начисляем XP пользователю
@@ -217,6 +316,18 @@ export async function completeMission(
       await pb.updateProfile(userId, {
         experience_points: currentUser.experience_points + userMission.expand.mission.xp_reward,
       } as Partial<User>);
+      
+      // Обновляем Zustand store для синхронизации UI
+      try {
+        const { useAuth } = await import('@/hooks/useAuth');
+        await useAuth.getState().refreshUser();
+        console.log('✅ Zustand store refreshed after mission completion');
+      } catch (error) {
+        console.error('Error refreshing Zustand store:', error);
+      }
+      
+      // Обновляем стрик миссий с XP
+      await updateMissionStreak(userId, userMission.expand.mission.xp_reward);
     }
   } catch (error) {
     console.error('Error completing mission:', error);
@@ -229,8 +340,14 @@ export async function skipMission(userMissionId: string): Promise<void> {
   try {
     await pb.client.collection('user_missions').update(userMissionId, {
       status: 'skipped' as const,
+    }, {
+      requestKey: null,
     });
   } catch (error) {
+    // Игнорируем ошибки автоотмены
+    if (error && typeof error === 'object' && 'isAbort' in error) {
+      return;
+    }
     console.error('Error skipping mission:', error);
     throw error;
   }
@@ -268,11 +385,13 @@ export async function getUserMissionStats(
     if (period === 'week') {
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
-      dateFilter = ` && assigned_date >= "${weekAgo.toISOString().split('T')[0]}"`;
+      weekAgo.setHours(0, 0, 0, 0); // Начало дня
+      dateFilter = ` && assigned_date >= "${weekAgo.toISOString()}"`;
     } else if (period === 'month') {
       const monthAgo = new Date();
       monthAgo.setDate(monthAgo.getDate() - 30);
-      dateFilter = ` && assigned_date >= "${monthAgo.toISOString().split('T')[0]}"`;
+      monthAgo.setHours(0, 0, 0, 0); // Начало дня
+      dateFilter = ` && assigned_date >= "${monthAgo.toISOString()}"`;
     }
 
     const allMissions = await pb.client.collection('user_missions').getFullList({
@@ -349,9 +468,10 @@ export async function calculateMissionStreak(userId: string): Promise<number> {
     // Получаем все миссии за последние 30 дней
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0); // Начало дня
     
     const missions = await pb.client.collection('user_missions').getFullList({
-      filter: `user = "${userId}" && assigned_date >= "${thirtyDaysAgo.toISOString().split('T')[0]}"`,
+      filter: `user = "${userId}" && assigned_date >= "${thirtyDaysAgo.toISOString()}"`,
       sort: '-assigned_date',
     });
 

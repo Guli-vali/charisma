@@ -31,16 +31,12 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register: registerUser, user, loading, initialize } = useAuth();
+  const { register: registerUser, user, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
-
-  useEffect(() => {
     if (user) {
-      router.push('/dashboard');
+      router.replace('/dashboard');
     }
   }, [user, router]);
 
@@ -68,7 +64,7 @@ export default function RegisterPage() {
     try {
       await registerUser(data);
       toast.success('Аккаунт успешно создан!');
-      router.push('/dashboard');
+      router.replace('/dashboard');
     } catch (error: any) {
       toast.error(error.message || 'Ошибка регистрации. Попробуйте еще раз.');
     } finally {

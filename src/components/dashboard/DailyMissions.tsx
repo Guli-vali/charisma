@@ -52,15 +52,35 @@ export function DailyMissions({ missions, onComplete }: DailyMissionsProps) {
                 </div>
 
                 {mission.type === 'real_mission' ? (
-                  <Button
-                    variant={mission.completed ? 'success' : 'primary'}
-                    size="sm"
-                    className="w-full"
-                    onClick={() => onComplete?.(mission.id)}
-                    disabled={mission.completed}
-                  >
-                    {mission.completed ? 'Выполнено' : 'Отметить как выполненное'}
-                  </Button>
+                  // Реальная миссия: показываем прогресс, но БЕЗ кнопки "отметить"
+                  // Миссия выполняется на странице /missions
+                  <div>
+                    <div className="flex justify-between text-sm text-gray-600 mb-2">
+                      <span>Прогресс</span>
+                      <span>{mission.current} / {mission.target}</span>
+                    </div>
+                    <ProgressBar
+                      value={progress}
+                      variant={mission.completed ? 'success' : 'primary'}
+                      size="sm"
+                      showLabel={false}
+                    />
+                    {mission.current >= mission.target && !mission.completed && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => onComplete?.(mission.id)}
+                      >
+                        Получить награду +{mission.xp_reward} XP
+                      </Button>
+                    )}
+                    {mission.current === 0 && (
+                      <p className="text-xs text-gray-500 mt-2 text-center">
+                        Выполните миссию на странице <a href="/missions" className="text-indigo-600 hover:underline">Миссии</a>
+                      </p>
+                    )}
+                  </div>
                 ) : (
                   <div>
                     <div className="flex justify-between text-sm text-gray-600 mb-2">
@@ -73,6 +93,16 @@ export function DailyMissions({ missions, onComplete }: DailyMissionsProps) {
                       size="sm"
                       showLabel={false}
                     />
+                    {mission.current >= mission.target && !mission.completed && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="w-full mt-2"
+                        onClick={() => onComplete?.(mission.id)}
+                      >
+                        Получить награду +{mission.xp_reward} XP
+                      </Button>
+                    )}
                   </div>
                 )}
               </motion.div>

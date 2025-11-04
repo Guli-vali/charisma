@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, Button } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardContent, Button, MissionsSkeleton } from '@/components/ui';
 import { MissionCompleteModal } from '@/components/missions/MissionCompleteModal';
 import { MissionStreak } from '@/components/missions/MissionStreak';
 import { MissionHistory } from '@/components/missions/MissionHistory';
 import { ChallengeCard } from '@/components/missions/ChallengeCard';
+import { AchievementUnlocked } from '@/components/achievements/AchievementUnlocked';
 import { useAuth } from '@/hooks/useAuth';
 import { useMissions } from '@/hooks/useMissions';
-import { CheckCircle, XCircle, SkipForward, Loader } from 'lucide-react';
+import { useGamification } from '@/hooks/useGamification';
+import { CheckCircle, SkipForward } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import type { WeeklyChallenge } from '@/lib/types';
@@ -23,9 +25,12 @@ export default function MissionsPage() {
     completeMission, 
     skipMission: handleSkip,
   } = useMissions(user?.id, user?.goals);
+  
+  const { trackAction, showAchievementModal, currentAchievement, dismissAchievement } = useGamification();
 
   const [selectedMissionId, setSelectedMissionId] = useState<string | null>(null);
   const [selectedMissionTitle, setSelectedMissionTitle] = useState<string>('');
+  const [selectedMissionCategory, setSelectedMissionCategory] = useState<string>('');
 
   // Mock weekly challenge (в будущем загружать из БД)
   const weeklyChallenge: WeeklyChallenge = {
@@ -40,9 +45,10 @@ export default function MissionsPage() {
     icon: '💪',
   };
 
-  const handleComplete = (missionId: string, missionTitle: string) => {
+  const handleComplete = (missionId: string, missionTitle: string, missionCategory: string) => {
     setSelectedMissionId(missionId);
     setSelectedMissionTitle(missionTitle);
+    setSelectedMissionCategory(missionCategory);
   };
 
   const handleConfirmComplete = async (
@@ -55,7 +61,18 @@ export default function MissionsPage() {
     try {
       await completeMission(selectedMissionId, proofText, moodRating, wasDifficult);
       toast.success('Миссия выполнена! 🎉');
+      
+      // Закрываем модальное окно
       setSelectedMissionId(null);
+      
+      // Проверяем достижения после закрытия модального окна
+      console.log('🎯 Checking achievements after mission completion...');
+      await trackAction('mission_completed', {
+        category: selectedMissionCategory,
+        mood: moodRating,
+        difficulty: wasDifficult,
+      });
+      console.log('✅ Achievement check completed for mission');
     } catch (error) {
       toast.error('Ошибка при отметке миссии');
     }
@@ -71,14 +88,7 @@ export default function MissionsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Загрузка миссий...</p>
-        </div>
-      </div>
-    );
+    return <MissionsSkeleton />;
   }
 
   // Фильтруем только миссии со статусом assigned или completed (не skipped)
@@ -177,7 +187,7 @@ export default function MissionsPage() {
                                   <Button
                                     variant="success"
                                     size="sm"
-                                    onClick={() => handleComplete(userMission.id, mission.title)}
+                                    onClick={() => handleComplete(userMission.id, mission.title, mission.category)}
                                   >
                                     Отметить выполненным
                                   </Button>
@@ -292,7 +302,17 @@ export default function MissionsPage() {
         onClose={() => setSelectedMissionId(null)}
         onConfirm={handleConfirmComplete}
         missionTitle={selectedMissionTitle}
+        missionCategory={selectedMissionCategory}
       />
+      
+      {/* Модальное окно достижения */}
+      {currentAchievement && currentAchievement.expand?.achievement && (
+        <AchievementUnlocked
+          achievement={currentAchievement.expand.achievement as any}
+          isOpen={showAchievementModal}
+          onClose={dismissAchievement}
+        />
+      )}
     </div>
   );
 }
