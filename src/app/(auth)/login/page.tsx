@@ -22,16 +22,12 @@ type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, user, loading, initialize } = useAuth();
+  const { login, user, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    initialize();
-  }, [initialize]);
-
-  useEffect(() => {
     if (user) {
-      router.push('/dashboard');
+      router.replace('/dashboard');
     }
   }, [user, router]);
 
@@ -53,7 +49,7 @@ export default function LoginPage() {
         // Можно добавить логику для сохранения в localStorage
       }
       
-      router.push('/dashboard');
+      router.replace('/dashboard');
     } catch (error: any) {
       toast.error(error.message || 'Ошибка входа. Проверьте данные.');
     } finally {

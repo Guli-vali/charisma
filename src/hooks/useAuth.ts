@@ -11,7 +11,13 @@ interface AuthState {
   logout: () => void;
   initialize: () => Promise<void>;
   updateUser: (userData: Partial<User>) => Promise<void>;
+  refreshUser: () => Promise<void>;
+  setUser: (user: User | null) => void;
 }
+
+// Флаг для предотвращения множественных инициализаций
+let isInitializing = false;
+let initPromise: Promise<void> | null = null;
 
 export const useAuth = create<AuthState>((set, get) => ({
   user: null,
@@ -19,13 +25,30 @@ export const useAuth = create<AuthState>((set, get) => ({
   initialized: false,
 
   initialize: async () => {
-    set({ loading: true });
-    try {
-      const user = pb.getCurrentUser();
-      set({ user, loading: false, initialized: true });
-    } catch (error) {
-      set({ user: null, loading: false, initialized: true });
+    // Если уже инициализирован, не делаем ничего
+    if (get().initialized) return;
+    
+    // Если идет инициализация, ждем её завершения
+    if (isInitializing && initPromise) {
+      return initPromise;
     }
+    
+    isInitializing = true;
+    set({ loading: true });
+    
+    initPromise = (async () => {
+      try {
+        const user = pb.getCurrentUser();
+        set({ user, loading: false, initialized: true });
+      } catch (error) {
+        set({ user: null, loading: false, initialized: true });
+      } finally {
+        isInitializing = false;
+        initPromise = null;
+      }
+    })();
+    
+    return initPromise;
   },
 
   login: async (email: string, password: string) => {
@@ -67,5 +90,32 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ loading: false });
       throw error;
     }
+  },
+
+  /**
+   * Перезагрузить данные текущего пользователя из PocketBase
+   * Используется после обновлений профиля в других местах приложения
+   */
+  refreshUser: async () => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+
+    try {
+      const freshUser = await pb.client.collection('users').getOne(currentUser.id, {
+        requestKey: null,
+      });
+      set({ user: freshUser as User });
+      console.log('✅ User data refreshed from PocketBase');
+    } catch (error) {
+      console.error('Error refreshing user:', error);
+    }
+  },
+
+  /**
+   * Обновить пользователя напрямую в store (без запроса к API)
+   * Используется для оптимистичных обновлений
+   */
+  setUser: (user: User | null) => {
+    set({ user });
   },
 }));

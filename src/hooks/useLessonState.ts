@@ -117,6 +117,8 @@ export function useLessonState(lessonId: string, userId: string | undefined) {
       const nextIndex = updatedAttempt.current_exercise;
       if (nextIndex >= state.lesson.exercises.length) {
         // Урок завершен
+        console.log('🎯 Completing lesson with final score:', updatedAttempt.score);
+        
         const finalAttempt = await completeLessonAttempt(
           updatedAttempt.id,
           updatedAttempt.score,
@@ -124,9 +126,12 @@ export function useLessonState(lessonId: string, userId: string | undefined) {
           userId!
         );
 
+        console.log('✅ Lesson completed! Final score:', finalAttempt.score);
+
         setState(prev => ({
           ...prev,
           attempt: finalAttempt,
+          score: finalAttempt.score, // ← Обновляем финальный score!
           isCompleted: true,
         }));
 

@@ -3,9 +3,9 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, ProgressBar } from '@/components/ui';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, SkillPageSkeleton } from '@/components/ui';
 import { useAuth } from '@/hooks/useAuth';
-import { getLessonsBySkillNode, isLessonCompleted } from '@/lib/lessons';
+import { getLessonsBySkillNode, getCompletedLessonIds } from '@/lib/lessons';
 import { getSkillById } from '@/lib/skillTreeData';
 import { ArrowLeft, Play, CheckCircle2, Lock } from 'lucide-react';
 import type { Lesson } from '@/lib/types';
@@ -30,18 +30,15 @@ export default function SkillPage({ params }: SkillPageProps) {
     const loadLessons = async () => {
       try {
         setLoading(true);
-        const lessonsData = await getLessonsBySkillNode(skillId);
+        
+        // Загружаем уроки и статус завершения параллельно - ОДНИМ запросом!
+        const [lessonsData, completedIds] = await Promise.all([
+          getLessonsBySkillNode(skillId),
+          getCompletedLessonIds(user.id),
+        ]);
+        
         setLessons(lessonsData);
-
-        // Проверяем, какие уроки завершены
-        const completed = new Set<string>();
-        for (const lesson of lessonsData) {
-          const isCompleted = await isLessonCompleted(user.id, lesson.id);
-          if (isCompleted) {
-            completed.add(lesson.id);
-          }
-        }
-        setCompletedLessons(completed);
+        setCompletedLessons(completedIds);
       } catch (error) {
         console.error('Error loading lessons:', error);
       } finally {
@@ -64,11 +61,7 @@ export default function SkillPage({ params }: SkillPageProps) {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <SkillPageSkeleton />;
   }
 
   return (

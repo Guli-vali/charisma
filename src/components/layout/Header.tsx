@@ -14,8 +14,9 @@ export function Header() {
   const router = useRouter();
 
   const handleLogout = () => {
+    setMobileMenuOpen(false);
     logout();
-    router.push('/login');
+    router.replace('/login');
   };
 
   return (
@@ -47,6 +48,9 @@ export function Header() {
             </Link>
             <Link href="/missions" className="text-gray-700 hover:text-indigo-600 transition-colors">
               Миссии
+            </Link>
+            <Link href="/achievements" className="text-gray-700 hover:text-indigo-600 transition-colors">
+              Достижения
             </Link>
             <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition-colors">
               Профиль
@@ -96,6 +100,9 @@ export function Header() {
               </Link>
               <Link href="/missions" className="text-gray-700 hover:text-indigo-600 transition-colors">
                 Миссии
+              </Link>
+              <Link href="/achievements" className="text-gray-700 hover:text-indigo-600 transition-colors">
+                Достижения
               </Link>
               <Link href="/profile" className="text-gray-700 hover:text-indigo-600 transition-colors">
                 Профиль

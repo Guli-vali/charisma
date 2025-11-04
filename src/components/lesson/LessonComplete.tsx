@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -7,6 +8,9 @@ import { Card, Button } from '@/components/ui';
 import { Trophy, Star, Home, ArrowRight, Share2 } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useGamification } from '@/hooks/useGamification';
+import { AchievementUnlocked } from '@/components/achievements/AchievementUnlocked';
+import { RARITY_COLORS } from '@/data/achievements';
 
 interface LessonCompleteProps {
   lessonTitle: string;
@@ -27,6 +31,43 @@ export function LessonComplete({
 }: LessonCompleteProps) {
   const router = useRouter();
   const percentage = Math.round((score / totalExercises) * 100);
+  const { trackAction, showAchievementModal, currentAchievement, dismissAchievement } = useGamification();
+  
+  // Используем ref для надежной защиты от повторных вызовов в React Strict Mode
+  const hasTrackedRef = useRef(false);
+
+  // Проверяем достижения при завершении урока
+  useEffect(() => {
+    const checkLessonAchievements = async () => {
+      // Используем ref для защиты от двойного выполнения в Strict Mode
+      if (hasTrackedRef.current) {
+        console.log('⚠️ Achievement check already executed, skipping duplicate');
+        return;
+      }
+      hasTrackedRef.current = true;
+
+      console.log('🎯 Checking achievements for completed lesson...');
+      const isPerfect = score === totalExercises;
+      
+      console.log('📊 Lesson stats:', { 
+        score, 
+        totalExercises, 
+        isPerfect,
+        percentage 
+      });
+      
+      await trackAction('lesson_completed', {
+        perfect: isPerfect,
+        score: score,
+        total: totalExercises,
+        percentage: percentage,
+      });
+
+      console.log('✅ Achievement check completed');
+    };
+
+    checkLessonAchievements();
+  }, []); // Выполняется один раз при монтировании
 
   const handleShare = () => {
     // Простая функция для копирования в буфер обмена
@@ -176,6 +217,15 @@ export function LessonComplete({
           </div>
         </Card>
       </motion.div>
+
+      {/* Модальное окно достижения */}
+      {currentAchievement && currentAchievement.expand?.achievement && (
+        <AchievementUnlocked
+          achievement={currentAchievement.expand.achievement as any}
+          isOpen={showAchievementModal}
+          onClose={dismissAchievement}
+        />
+      )}
     </div>
   );
 }
