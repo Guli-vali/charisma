@@ -183,7 +183,11 @@ export async function updateTodayStreak(
   xpEarned: number = 0
 ): Promise<DailyStreak> {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const dateStr = new Date().toISOString();
+    if (!dateStr) {
+      throw new Error('Failed to get current date');
+    }
+    const today = dateStr.split('T')[0];
     const requestKey = `today_streak_${userId}_${today}`;
     
     const existing = await getTodayStreak(userId);

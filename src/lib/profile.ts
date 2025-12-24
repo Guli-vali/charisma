@@ -353,12 +353,18 @@ export async function refreshUserStats(userId: string): Promise<UserStats> {
     // Calculate days active (unique dates with activity)
     const activityDates = new Set<string>();
     lessons.forEach((l) => {
-      const date = new Date(l.completed_at || l.updated).toISOString().split('T')[0];
-      activityDates.add(date);
+      const timestamp = l.completed_at || l.updated;
+      if (timestamp) {
+        const dateStr = new Date(timestamp).toISOString().split('T')[0];
+        activityDates.add(dateStr);
+      }
     });
     missions.forEach((m) => {
-      const date = new Date(m.completed_at || m.updated).toISOString().split('T')[0];
-      activityDates.add(date);
+      const timestamp = m.completed_at || m.updated;
+      if (timestamp) {
+        const dateStr = new Date(timestamp).toISOString().split('T')[0];
+        activityDates.add(dateStr);
+      }
     });
 
     // Get current streak from user_progress
@@ -422,21 +428,27 @@ export async function getActivityCalendar(userId: string): Promise<ActivityDay[]
     const activityByDate: Record<string, ActivityDay> = {};
 
     lessons.forEach((lesson) => {
-      const date = new Date(lesson.completed_at || lesson.updated).toISOString().split('T')[0];
+      const timestamp = lesson.completed_at || lesson.updated;
+      if (timestamp) {
+        const date = new Date(timestamp).toISOString().split('T')[0];
       if (!activityByDate[date]) {
         activityByDate[date] = { date, lessons: 0, missions: 0, xp: 0, intensity: 0 };
       }
       activityByDate[date].lessons += 1;
       activityByDate[date].xp += lesson.xp_earned || 0;
+      }
     });
 
     missions.forEach((mission) => {
-      const date = new Date(mission.completed_at || mission.updated).toISOString().split('T')[0];
+      const timestamp = mission.completed_at || mission.updated;
+      if (timestamp) {
+        const date = new Date(timestamp).toISOString().split('T')[0];
       if (!activityByDate[date]) {
         activityByDate[date] = { date, lessons: 0, missions: 0, xp: 0, intensity: 0 };
       }
       activityByDate[date].missions += 1;
       activityByDate[date].xp += mission.xp_reward || 0;
+      }
     });
 
     // Calculate intensity (0-4 based on total activity)

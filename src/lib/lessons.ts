@@ -392,9 +392,15 @@ export async function completeLessonAttempt(
   lesson: Lesson,
   userId: string
 ): Promise<UserLessonAttempt> {
-  console.log('🏁 completeLessonAttempt called:', { attemptId, lessonId: lesson.id, userId });
+  console.log('🏁 completeLessonAttempt called:', { attemptId, lessonId: lesson?.id, userId });
   
   try {
+    // Проверяем валидность lesson объекта
+    if (!lesson || !lesson.id) {
+      console.error('❌ Invalid lesson object provided to completeLessonAttempt');
+      throw new Error('Invalid lesson object');
+    }
+
     // Проверяем что попытка еще не завершена
     const currentAttempt = await pb.client.collection('user_lesson_attempts').getOne(attemptId, {
       requestKey: null,
@@ -432,8 +438,9 @@ export async function completeLessonAttempt(
         // При первом завершении обновляем счетчики уроков И XP
         try {
           const { updateTodayStreak } = await import('@/lib/api');
-          await updateTodayStreak(userId, 1, 0, lesson.xp_reward);
-          console.log(`✅ Today streak updated (lessons_completed +1, xp +${lesson.xp_reward})`);
+          const xpReward = lesson?.xp_reward ?? 0;
+          await updateTodayStreak(userId, 1, 0, xpReward);
+          console.log(`✅ Today streak updated (lessons_completed +1, xp +${xpReward})`);
         } catch (error) {
           console.error('Error updating today streak:', error);
         }
@@ -450,16 +457,17 @@ export async function completeLessonAttempt(
 
       if (isFirstCompletion) {
         console.log('💰 Awarding XP and updating stats (first completion)');
+        const xpReward = lesson?.xp_reward ?? 0;
         console.log(`📊 Current XP: ${currentUser.experience_points}`);
-        console.log(`➕ Lesson reward: +${lesson.xp_reward} XP`);
-        console.log(`🎯 New XP will be: ${currentUser.experience_points + lesson.xp_reward}`);
+        console.log(`➕ Lesson reward: +${xpReward} XP`);
+        console.log(`🎯 New XP will be: ${currentUser.experience_points + xpReward}`);
         
         // Обновляем стрик
         const newStreak = await updateStreak(userId, currentUser);
         
         // Начисляем XP только за первое прохождение
         await pb.updateProfile(userId, {
-          experience_points: currentUser.experience_points + lesson.xp_reward,
+          experience_points: currentUser.experience_points + xpReward,
           total_lessons_completed: currentUser.total_lessons_completed + 1,
           current_streak: newStreak,
         } as any);
